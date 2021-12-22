@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <button id="connect" type="button" onclick="handleClick">Connect</button>
+    <button id="play" type="button" onclick="play">Play</button>
+    <button id="stop" type="button" onclick="stop">Stop</button>
+    <audio id="player"></audio>
+    <script>
+      const connectButton = document.getElementById("connect");
+      const playButton = document.getElementById("play");
+      connectButton.onclick = handleClick;
+      function handleClick(e) {
+        e.preventDefault();
+        connectServer();
+      }
+      playButton.onclick = play;
+      const audioContext = new AudioContext();
+      const tempStorage = [];
+      let nextStartTime = 0;
+      let source;
+      function play(e) {
+        e.preventDefault();
+        console.log("playing", audioContext.currentTime);
+        //end of stream has been reached
+        if (tempStorage.length === 0) {
+          return;
+        }
+        const temp = tempStorage.shift();
+        source = audioContext.createBufferSource();
+        //get the latest buffer that should play next
+        source.buffer = temp;
+        source.connect(audioContext.destination);
+        console.log("length", temp.length);
+        console.log("sampleRate", temp.sampleRate);
+        //add this function as a callback to play next buffer
+        //when current buffer has reached its end
+        source.onended = play;
+        if (nextStartTime == 0)
+          nextStartTime =
+            audioContext.currentTime + temp.length / temp.sampleRate;
+        source.start(nextStartTime);
+        // nextStartTime += temp.length / temp.sampleRate;
+      }
+      function stop(e) {
+        e.preventDefault();
+        console.log(source);
+        console.log(audioContext.currentTime);
+        source.stop();
+      }
+      function resume(e) {
+        e.preventDefault();
+        console.log(source);
+        console.log(audioContext.currentTime);
+        source.start();
+      }
+      function connectServer() {
+        const ws = new WebSocket(
+          // insert URL
+        );
+        // ws.binaryType = "arraybuffer";
+        ws.onopen = (ev) => {
+          console.log(ev);
+        };
+        ws.onmessage = async (ev) => {
+          console.log(ev);
+          console.log(ev.data instanceof Blob);
+          const buffer = await ev.data.arrayBuffer();
+          console.log(buffer)
+          
+          audioContext.decodeAudioData(
+            buffer,
+            (res) => {
+              console.log(res);
+              tempStorage.push(res);
+            },
+            (e) => {
+              console.log(e);
+            }
+          );
+        };
+        ws.onclose = (ev) => {
+          console.log("closed", ev);
+        };
+      }
+    </script>
+  </body>
+</html>
